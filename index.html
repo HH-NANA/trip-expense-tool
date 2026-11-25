@@ -1,0 +1,763 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>출장 세부내역서 만들기 v9</title><style>
+:root{font:15px/1.55 Pretendard,system-ui,sans-serif;color:#152336;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:auto;padding:24px}h1,h2,h3,h4,p{margin:0 0 10px}h1{font-size:27px}h2{font-size:19px}h3{font-size:17px}h4{font-size:15px}.card,.person{background:#fff;border:1px solid #d2dae5;border-radius:8px;padding:16px;margin:12px 0}.person{padding:14px}.day,.receipt,.room{border-top:1px solid #dce4ef;padding:9px 0;margin-top:7px}.day>strong{display:block;margin-bottom:5px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px 13px;align-items:end}.grid+.grid{margin-top:8px}.top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}.top>*{margin:0}label{display:block;font-weight:600}input:not([type=checkbox]),select{display:block;width:100%;padding:6px 8px;min-height:36px;background:white;color:inherit;border:1px solid #9aabbe;border-radius:5px;font:inherit;margin-top:3px}input[type=file]{font-size:13px}input[type=checkbox]{width:17px;height:17px;margin:4px 8px 4px 2px;vertical-align:middle}button{font:inherit;font-weight:650;border:1px solid #9aabbe;color:#152336;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #145dcc;outline-offset:2px}button:disabled{opacity:.6;cursor:wait}.primary{background:#184d99;border-color:#184d99;color:white}.hint,small{color:#43536a}.hint{margin-top:8px}#status{margin-top:10px;font-weight:650;overflow-wrap:anywhere}#status.err{color:#a0242c}#preview:empty{display:none}[hidden]{display:none!important}#app:not([data-kind=foreign]) .foreign,#app[data-kind=foreign] .notforeign,#app:not([data-kind=near]) .near,#app:not([data-standard=true]) .standard,#app[data-standard=true] .notstandard{display:none}
+.storage-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.file-info{display:block;font-weight:400;overflow-wrap:anywhere}.file-clear{font-size:13px;margin-top:4px}.shift{margin-top:12px}.shift input{max-width:230px}#archiveStatus{margin-top:8px;overflow-wrap:anywhere}
+.file-list{margin:4px 0;padding-inline-start:20px;font-size:13px;overflow-wrap:anywhere}.file-list li{margin:4px 0}.file-list button{margin-inline-start:8px;padding:2px 6px;font-size:12px}#app:not([data-kind="dom"]) .domroute{display:none}.roomBox{border:1px solid #9aabbe;border-radius:6px;padding:12px;margin-top:12px}.roomBox h4{margin-bottom:4px}.roomBox .hint{margin:0}.room>strong{grid-column:1/-1}.room .lodging-upload{grid-column:1/-1}</style></head><body><main id="app" data-kind="dom" data-standard="true"><h1>출장 세부내역서 만들기</h1><p>출장 유형을 고르고 증빙 이미지를 올리면, 계산 내역과 증빙이 포함된 엑셀을 만듭니다.</p>
+<section class="card" id="archive"><h2>저장한 출장 내역 (<span id="archiveCount">–</span>/20건)</h2><p class="hint">입력값과 증빙 이미지를 현재 브라우저에 저장합니다. 같은 파일을 같은 위치에서 같은 브라우저 프로필로 열어 주세요.</p><label>저장 이름 (선택)<input id="archiveTitle" maxlength="120" placeholder="비워 두면 출장지·날짜로 저장"></label><div class="storage-actions"><button type="button" id="archiveNew">새 내역으로 저장</button><button type="button" id="archiveOverwrite" disabled>불러온 내역 덮어쓰기</button></div><label>저장 목록<select id="archiveList"><option value="">저장 내역 선택</option></select></label><div class="storage-actions"><button type="button" id="archiveLoad">불러오기</button><button type="button" id="archiveDelete">선택 내역 삭제</button></div><p id="archiveStatus" role="status"></p></section>
+<section class="card"><h2>1. 출장 기본 정보</h2><div class="grid"><label>출장 구분<select id="kind"><option value="dom">국내 일반출장 (편도 100km 초과)</option><option value="near">근거리 출장 (편도 100km 이하)</option><option value="foreign">해외출장</option></select></label><label class="notforeign">편도 거리 (km, 입력 시 확인)<input id="distance" type="number" min="0.01" max="20000" step="0.01"></label><label>용역명<input id="project" maxlength="100" placeholder="미입력 시 [0000000]공통용역"></label><label class="domroute">교통 출발지 (공통)<input id="origin" maxlength="80" placeholder="예: 수서역"></label><label>출장지<input id="place" maxlength="140"></label><label>목적<input id="purpose" maxlength="160"></label><label>출발일<input id="start" type="date"></label><label>복귀일<input id="end" type="date"></label></div><p id="period" class="hint"></p><div class="shift"><label>출장일만 이동할 때: 새 출발일<input id="shiftDate" type="date"></label><button type="button" id="shiftApply">기간을 유지하고 날짜 이동</button><p class="hint">출장 일수와 일차별 입력은 유지합니다. 일요일은 다시 계산하므로 공휴일과 날짜별 예외를 확인하세요.</p></div><div class="near"><label>근거리 승인 예외<select id="approval"></select></label><label><input type="checkbox" id="approved">선택한 예외에 대해 결재권자 승인을 확인했습니다.</label><label id="nearDistanceBox" hidden>거리 기준 초과 처리 근거<input id="nearDistanceReason" maxlength="180" placeholder="예: 결재권자 승인 일자 또는 문서번호"></label><p id="nearDistanceWarning" class="hint" role="status"></p><label id="nearApprovalBox" hidden>여비 예외 승인 사유·문서번호<input id="nearApprovalNote" maxlength="180"></label><p class="hint">등록한 시작일부터 복귀일까지 연속된 일정으로 계산합니다. 날짜가 끊기면 별도 건으로 작성하세요.</p><p class="hint">자차는 소노타워 출발, 네이버지도 ‘실시간추천’ 왕복거리와 통행료 증빙을 사용합니다. 식비가 포함되면 ERP에서는 국내출장으로 처리합니다.</p></div><p class="foreign hint">해외출장은 기안이 완료된 산출내역서의 원화 지급액으로 임직원·여행사 지급분을 나눕니다. 국가별 여비·환율은 자동 산정하지 않습니다.</p><div id="groupBox"><label><input type="checkbox" id="group">모든 출장자가 같은 일정·구간을 함께 이동했습니다.</label><p class="hint">이 확인을 선택하고 모든 출장자의 날짜별 교통수단과 이동 순서가 일치하면, 일비를 제외한 항목에 최고 직급의 지급 기준을 적용합니다. 실제 결제 금액은 출장자별로 다를 수 있습니다.</p></div></section>
+<section class="card"><div class="top"><h2>2. 출장자별 비용·증빙</h2><button type="button" id="add">출장자 추가</button></div><p class="notforeign hint">교통수단은 실제 순서대로 선택하세요. 회사차량과 대중교통을 섞어 이용했다면 실제 이용한 유료 구간의 금액만 입력하세요. 일요일은 자동 표시되며, 그 외 공휴일은 직접 선택하세요.</p><p class="domroute hint">교통비 비고의 공통 구간은 교통 출발지와 출장지를 사용합니다. 역·터미널 등이 다르면 출장자별 증빙 행에 실제 출발지와 도착지를 입력하세요.</p><p class="standard hint">자차 기준 운임 확인 순서: SRT(수서) → KTX(서울, 노선 없으면 용산) → 고속버스(동서울, 노선 없으면 강남). 기준 운임과 통행료는 각각 증빙합니다. 렌터카·쏘카는 지급 대상에서 제외합니다.</p><p class="standard hint">회사차량·동승 또는 전일 오후·익일 오전 조건의 일비 감액은 1/2을 한 번만 적용합니다. 일요일·공휴일에는 일비를 지급하지 않으며, 식비 감액 조건이 겹치면 적용 기준을 선택하세요. 택시·주차는 출장자별 합계에서 지급 일비 총액을 뺀 초과분을 적용합니다.</p><div id="people"></div><small>증빙 이미지는 PNG, JPEG, WebP를 지원합니다. 금액은 직접 입력하며 이미지 속 금액을 읽지 않습니다.</small></section>
+<section class="card"><h2>3. 출장 공통 교통비 증빙 (필요할 때만)</h2><label>교통비 증빙 이미지 추가<input id="tripProof" type="file" multiple accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"></label><p class="hint">개별 승차권은 위의 출장자별 교통비 증빙에 올리세요. 이 칸은 여러 출장자가 함께 사용하는 증빙용입니다. 여기 올린 이미지는 엑셀에 ‘출장 공통’으로 표시되며 금액 계산에는 반영하지 않습니다.</p><button type="button" id="clearTransport">교통 증빙 이미지만 모두 비우기</button><p class="hint" id="proofStatus" role="status"></p></section>
+<section class="card"><h2>4. 검산 및 엑셀 다운로드</h2><button type="button" id="check">금액 검산</button> <button type="button" id="save" class="primary">엑셀 만들기</button> <button type="button" id="archiveJump">내역 저장 메뉴로 이동</button><div id="status" role="status"></div><ul id="preview"></ul><p class="hint">브라우저에서만 처리합니다. 엑셀 만들기는 다운로드만 합니다. 다음에 다시 쓰려면 저장 메뉴에서 ‘새 내역으로 저장’을 누르세요. 기준: 「사업본부 사무 업무 매뉴얼」 3-1~3-5, 3-11 및 동일 교통수단 동행 조건.</p></section>
+</main><script>
+'use strict';
+const assets={"parts": {"xl/styles.xml": "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><numFmts count=\"3\"><numFmt numFmtId=\"164\" formatCode=\"#,##0_);[Red]\\(#,##0\\)\"/><numFmt numFmtId=\"165\" formatCode=\"#,##0_ \"/><numFmt numFmtId=\"166\" formatCode=\"0_);[Red]\\(0\\)\"/></numFmts><fonts count=\"12\"><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"2\"/><color theme=\"1\"/><sz val=\"11\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"2\"/><sz val=\"8\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"3\"/><color theme=\"1\"/><sz val=\"12\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"2\"/><color theme=\"1\"/><sz val=\"12\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"2\"/><color theme=\"1\"/><sz val=\"11\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"3\"/><b val=\"1\"/><color theme=\"1\"/><sz val=\"12\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"3\"/><color theme=\"1\"/><sz val=\"18\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"3\"/><b val=\"1\"/><color theme=\"1\"/><sz val=\"18\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"3\"/><color theme=\"1\"/><sz val=\"12\"/><scheme val=\"major\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"3\"/><color theme=\"1\"/><sz val=\"11\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"3\"/><b val=\"1\"/><color theme=\"1\"/><sz val=\"11\"/><scheme val=\"minor\"/></font><font><name val=\"맑은 고딕\"/><charset val=\"129\"/><family val=\"3\"/><color rgb=\"FF000000\"/><sz val=\"11\"/><scheme val=\"minor\"/></font></fonts><fills count=\"4\"><fill><patternFill/></fill><fill><patternFill patternType=\"gray125\"/></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"8\" tint=\"0.7999816888943144\"/><bgColor indexed=\"64\"/></patternFill></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"2\" tint=\"-0.09997863704336681\"/><bgColor indexed=\"64\"/></patternFill></fill></fills><borders count=\"11\"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right style=\"thin\"><color indexed=\"64\"/></right><top style=\"thin\"><color indexed=\"64\"/></top><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right style=\"thin\"><color indexed=\"64\"/></right><top style=\"thin\"><color indexed=\"64\"/></top><bottom/><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right style=\"thin\"><color indexed=\"64\"/></right><top/><bottom/><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right style=\"thin\"><color indexed=\"64\"/></right><top/><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right/><top style=\"thin\"><color indexed=\"64\"/></top><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left/><right style=\"thin\"><color indexed=\"64\"/></right><top style=\"thin\"><color indexed=\"64\"/></top><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left/><right/><top style=\"thin\"><color indexed=\"64\"/></top><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left/><right/><top style=\"thin\"><color indexed=\"64\"/></top><bottom/><diagonal/></border><border><left/><right style=\"thin\"><color indexed=\"64\"/></right><top style=\"thin\"><color indexed=\"64\"/></top><bottom/><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count=\"2\"><xf numFmtId=\"0\" fontId=\"4\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"42\" fontId=\"4\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\"><alignment vertical=\"center\"/></xf></cellStyleXfs><cellXfs count=\"49\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"left\" vertical=\"center\"/></xf><xf numFmtId=\"164\" fontId=\"2\" fillId=\"0\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"165\" fontId=\"2\" fillId=\"0\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"165\" fontId=\"5\" fillId=\"2\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"3\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"1\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"9\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"1\" xfId=\"0\"><alignment vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"10\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"1\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"1\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"10\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"9\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"1\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"1\" xfId=\"0\"><alignment vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"9\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"11\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"right\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"left\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"5\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"7\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"6\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"7\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"0\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"3\" borderId=\"5\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"3\" borderId=\"6\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"6\" fillId=\"0\" borderId=\"2\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"6\" fillId=\"0\" borderId=\"3\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"6\" fillId=\"0\" borderId=\"4\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"166\" fontId=\"8\" fillId=\"0\" borderId=\"5\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"166\" fontId=\"8\" fillId=\"0\" borderId=\"6\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"166\" fontId=\"8\" fillId=\"0\" borderId=\"5\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"166\" fontId=\"8\" fillId=\"0\" borderId=\"6\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"6\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"6\" fillId=\"0\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"166\" fontId=\"8\" fillId=\"0\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"1\"><alignment wrapText=\"1\" horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"164\" fontId=\"2\" fillId=\"0\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"3\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"/><xf numFmtId=\"165\" fontId=\"2\" fillId=\"0\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment wrapText=\"1\" horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"166\" fontId=\"8\" fillId=\"0\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"4\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"7\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"/><xf numFmtId=\"165\" fontId=\"5\" fillId=\"2\" borderId=\"1\" applyAlignment=\"1\" pivotButton=\"0\" quotePrefix=\"0\" xfId=\"0\"><alignment horizontal=\"center\" vertical=\"center\"/></xf></cellXfs><cellStyles count=\"2\"><cellStyle name=\"표준\" xfId=\"0\" builtinId=\"0\"/><cellStyle name=\"통화 [0]\" xfId=\"1\" builtinId=\"7\"/></cellStyles><tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium2\" defaultPivotStyle=\"PivotStyleLight16\"/><colors><indexedColors><rgbColor rgb=\"00000000\"/><rgbColor rgb=\"00FFFFFF\"/><rgbColor rgb=\"00FF0000\"/><rgbColor rgb=\"0000FF00\"/><rgbColor rgb=\"000000FF\"/><rgbColor rgb=\"00FFFF00\"/><rgbColor rgb=\"00FF00FF\"/><rgbColor rgb=\"0000FFFF\"/><rgbColor rgb=\"00000000\"/><rgbColor rgb=\"00FFFFFF\"/><rgbColor rgb=\"00FF0000\"/><rgbColor rgb=\"0000FF00\"/><rgbColor rgb=\"000000FF\"/><rgbColor rgb=\"00FFFF00\"/><rgbColor rgb=\"00FF00FF\"/><rgbColor rgb=\"0000FFFF\"/><rgbColor rgb=\"00800000\"/><rgbColor rgb=\"00008000\"/><rgbColor rgb=\"00000080\"/><rgbColor rgb=\"00808000\"/><rgbColor rgb=\"00800080\"/><rgbColor rgb=\"00008080\"/><rgbColor rgb=\"00C0C0C0\"/><rgbColor rgb=\"00808080\"/><rgbColor rgb=\"009999FF\"/><rgbColor rgb=\"00993366\"/><rgbColor rgb=\"00FFFFCC\"/><rgbColor rgb=\"00CCFFFF\"/><rgbColor rgb=\"00660066\"/><rgbColor rgb=\"00FF8080\"/><rgbColor rgb=\"000066CC\"/><rgbColor rgb=\"00CCCCFF\"/><rgbColor rgb=\"00000080\"/><rgbColor rgb=\"00FF00FF\"/><rgbColor rgb=\"00FFFF00\"/><rgbColor rgb=\"0000FFFF\"/><rgbColor rgb=\"00800080\"/><rgbColor rgb=\"00800000\"/><rgbColor rgb=\"00008080\"/><rgbColor rgb=\"000000FF\"/><rgbColor rgb=\"0000CCFF\"/><rgbColor rgb=\"00CCFFFF\"/><rgbColor rgb=\"00CCFFCC\"/><rgbColor rgb=\"00FFFF99\"/><rgbColor rgb=\"0099CCFF\"/><rgbColor rgb=\"00FF99CC\"/><rgbColor rgb=\"00CC99FF\"/><rgbColor rgb=\"00FFCC99\"/><rgbColor rgb=\"003366FF\"/><rgbColor rgb=\"0033CCCC\"/><rgbColor rgb=\"0099CC00\"/><rgbColor rgb=\"00FFCC00\"/><rgbColor rgb=\"00FF9900\"/><rgbColor rgb=\"00FF6600\"/><rgbColor rgb=\"00666699\"/><rgbColor rgb=\"00969696\"/><rgbColor rgb=\"00003366\"/><rgbColor rgb=\"00339966\"/><rgbColor rgb=\"00003300\"/><rgbColor rgb=\"00333300\"/><rgbColor rgb=\"00993300\"/><rgbColor rgb=\"00993366\"/><rgbColor rgb=\"00333399\"/><rgbColor rgb=\"00333333\"/></indexedColors></colors></styleSheet>", "xl/theme/theme1.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" name=\"Office 2013 - 2022 테마\"><a:themeElements><a:clrScheme name=\"Office 2013 - 2022\"><a:dk1><a:sysClr val=\"windowText\" lastClr=\"000000\"/></a:dk1><a:lt1><a:sysClr val=\"window\" lastClr=\"FFFFFF\"/></a:lt1><a:dk2><a:srgbClr val=\"44546A\"/></a:dk2><a:lt2><a:srgbClr val=\"E7E6E6\"/></a:lt2><a:accent1><a:srgbClr val=\"4472C4\"/></a:accent1><a:accent2><a:srgbClr val=\"ED7D31\"/></a:accent2><a:accent3><a:srgbClr val=\"A5A5A5\"/></a:accent3><a:accent4><a:srgbClr val=\"FFC000\"/></a:accent4><a:accent5><a:srgbClr val=\"5B9BD5\"/></a:accent5><a:accent6><a:srgbClr val=\"70AD47\"/></a:accent6><a:hlink><a:srgbClr val=\"0563C1\"/></a:hlink><a:folHlink><a:srgbClr val=\"954F72\"/></a:folHlink></a:clrScheme><a:fontScheme name=\"Office 2013 - 2022\"><a:majorFont><a:latin typeface=\"Calibri Light\" panose=\"020F0302020204030204\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/><a:font script=\"Jpan\" typeface=\"游ゴシック Light\"/><a:font script=\"Hang\" typeface=\"맑은 고딕\"/><a:font script=\"Hans\" typeface=\"等线 Light\"/><a:font script=\"Hant\" typeface=\"新細明體\"/><a:font script=\"Arab\" typeface=\"Times New Roman\"/><a:font script=\"Hebr\" typeface=\"Times New Roman\"/><a:font script=\"Thai\" typeface=\"Tahoma\"/><a:font script=\"Ethi\" typeface=\"Nyala\"/><a:font script=\"Beng\" typeface=\"Vrinda\"/><a:font script=\"Gujr\" typeface=\"Shruti\"/><a:font script=\"Khmr\" typeface=\"MoolBoran\"/><a:font script=\"Knda\" typeface=\"Tunga\"/><a:font script=\"Guru\" typeface=\"Raavi\"/><a:font script=\"Cans\" typeface=\"Euphemia\"/><a:font script=\"Cher\" typeface=\"Plantagenet Cherokee\"/><a:font script=\"Yiii\" typeface=\"Microsoft Yi Baiti\"/><a:font script=\"Tibt\" typeface=\"Microsoft Himalaya\"/><a:font script=\"Thaa\" typeface=\"MV Boli\"/><a:font script=\"Deva\" typeface=\"Mangal\"/><a:font script=\"Telu\" typeface=\"Gautami\"/><a:font script=\"Taml\" typeface=\"Latha\"/><a:font script=\"Syrc\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Orya\" typeface=\"Kalinga\"/><a:font script=\"Mlym\" typeface=\"Kartika\"/><a:font script=\"Laoo\" typeface=\"DokChampa\"/><a:font script=\"Sinh\" typeface=\"Iskoola Pota\"/><a:font script=\"Mong\" typeface=\"Mongolian Baiti\"/><a:font script=\"Viet\" typeface=\"Times New Roman\"/><a:font script=\"Uigh\" typeface=\"Microsoft Uighur\"/><a:font script=\"Geor\" typeface=\"Sylfaen\"/><a:font script=\"Armn\" typeface=\"Arial\"/><a:font script=\"Bugi\" typeface=\"Leelawadee UI\"/><a:font script=\"Bopo\" typeface=\"Microsoft JhengHei\"/><a:font script=\"Java\" typeface=\"Javanese Text\"/><a:font script=\"Lisu\" typeface=\"Segoe UI\"/><a:font script=\"Mymr\" typeface=\"Myanmar Text\"/><a:font script=\"Nkoo\" typeface=\"Ebrima\"/><a:font script=\"Olck\" typeface=\"Nirmala UI\"/><a:font script=\"Osma\" typeface=\"Ebrima\"/><a:font script=\"Phag\" typeface=\"Phagspa\"/><a:font script=\"Syrn\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Syrj\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Syre\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Sora\" typeface=\"Nirmala UI\"/><a:font script=\"Tale\" typeface=\"Microsoft Tai Le\"/><a:font script=\"Talu\" typeface=\"Microsoft New Tai Lue\"/><a:font script=\"Tfng\" typeface=\"Ebrima\"/></a:majorFont><a:minorFont><a:latin typeface=\"Calibri\" panose=\"020F0502020204030204\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/><a:font script=\"Jpan\" typeface=\"游ゴシック\"/><a:font script=\"Hang\" typeface=\"맑은 고딕\"/><a:font script=\"Hans\" typeface=\"等线\"/><a:font script=\"Hant\" typeface=\"新細明體\"/><a:font script=\"Arab\" typeface=\"Arial\"/><a:font script=\"Hebr\" typeface=\"Arial\"/><a:font script=\"Thai\" typeface=\"Tahoma\"/><a:font script=\"Ethi\" typeface=\"Nyala\"/><a:font script=\"Beng\" typeface=\"Vrinda\"/><a:font script=\"Gujr\" typeface=\"Shruti\"/><a:font script=\"Khmr\" typeface=\"DaunPenh\"/><a:font script=\"Knda\" typeface=\"Tunga\"/><a:font script=\"Guru\" typeface=\"Raavi\"/><a:font script=\"Cans\" typeface=\"Euphemia\"/><a:font script=\"Cher\" typeface=\"Plantagenet Cherokee\"/><a:font script=\"Yiii\" typeface=\"Microsoft Yi Baiti\"/><a:font script=\"Tibt\" typeface=\"Microsoft Himalaya\"/><a:font script=\"Thaa\" typeface=\"MV Boli\"/><a:font script=\"Deva\" typeface=\"Mangal\"/><a:font script=\"Telu\" typeface=\"Gautami\"/><a:font script=\"Taml\" typeface=\"Latha\"/><a:font script=\"Syrc\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Orya\" typeface=\"Kalinga\"/><a:font script=\"Mlym\" typeface=\"Kartika\"/><a:font script=\"Laoo\" typeface=\"DokChampa\"/><a:font script=\"Sinh\" typeface=\"Iskoola Pota\"/><a:font script=\"Mong\" typeface=\"Mongolian Baiti\"/><a:font script=\"Viet\" typeface=\"Arial\"/><a:font script=\"Uigh\" typeface=\"Microsoft Uighur\"/><a:font script=\"Geor\" typeface=\"Sylfaen\"/><a:font script=\"Armn\" typeface=\"Arial\"/><a:font script=\"Bugi\" typeface=\"Leelawadee UI\"/><a:font script=\"Bopo\" typeface=\"Microsoft JhengHei\"/><a:font script=\"Java\" typeface=\"Javanese Text\"/><a:font script=\"Lisu\" typeface=\"Segoe UI\"/><a:font script=\"Mymr\" typeface=\"Myanmar Text\"/><a:font script=\"Nkoo\" typeface=\"Ebrima\"/><a:font script=\"Olck\" typeface=\"Nirmala UI\"/><a:font script=\"Osma\" typeface=\"Ebrima\"/><a:font script=\"Phag\" typeface=\"Phagspa\"/><a:font script=\"Syrn\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Syrj\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Syre\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Sora\" typeface=\"Nirmala UI\"/><a:font script=\"Tale\" typeface=\"Microsoft Tai Le\"/><a:font script=\"Talu\" typeface=\"Microsoft New Tai Lue\"/><a:font script=\"Tfng\" typeface=\"Ebrima\"/></a:minorFont></a:fontScheme><a:fmtScheme name=\"Office 2013 - 2022\"><a:fillStyleLst><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"110000\"/><a:satMod val=\"105000\"/><a:tint val=\"67000\"/></a:schemeClr></a:gs><a:gs pos=\"50000\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"105000\"/><a:satMod val=\"103000\"/><a:tint val=\"73000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"105000\"/><a:satMod val=\"109000\"/><a:tint val=\"81000\"/></a:schemeClr></a:gs></a:gsLst><a:lin ang=\"5400000\" scaled=\"0\"/></a:gradFill><a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\"><a:schemeClr val=\"phClr\"><a:satMod val=\"103000\"/><a:lumMod val=\"102000\"/><a:tint val=\"94000\"/></a:schemeClr></a:gs><a:gs pos=\"50000\"><a:schemeClr val=\"phClr\"><a:satMod val=\"110000\"/><a:lumMod val=\"100000\"/><a:shade val=\"100000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"99000\"/><a:satMod val=\"120000\"/><a:shade val=\"78000\"/></a:schemeClr></a:gs></a:gsLst><a:lin ang=\"5400000\" scaled=\"0\"/></a:gradFill></a:fillStyleLst><a:lnStyleLst><a:ln w=\"6350\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln><a:ln w=\"12700\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln><a:ln w=\"19050\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst><a:outerShdw blurRad=\"57150\" dist=\"19050\" dir=\"5400000\" algn=\"ctr\" rotWithShape=\"0\"><a:srgbClr val=\"000000\"><a:alpha val=\"63000\"/></a:srgbClr></a:outerShdw></a:effectLst></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:solidFill><a:schemeClr val=\"phClr\"><a:tint val=\"95000\"/><a:satMod val=\"170000\"/></a:schemeClr></a:solidFill><a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\"><a:schemeClr val=\"phClr\"><a:tint val=\"93000\"/><a:satMod val=\"150000\"/><a:shade val=\"98000\"/><a:lumMod val=\"102000\"/></a:schemeClr></a:gs><a:gs pos=\"50000\"><a:schemeClr val=\"phClr\"><a:tint val=\"98000\"/><a:satMod val=\"130000\"/><a:shade val=\"90000\"/><a:lumMod val=\"103000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"phClr\"><a:shade val=\"63000\"/><a:satMod val=\"120000\"/></a:schemeClr></a:gs></a:gsLst><a:lin ang=\"5400000\" scaled=\"0\"/></a:gradFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements><a:objectDefaults/><a:extraClrSchemeLst/><a:extLst><a:ext uri=\"{05A4C25C-085E-4340-85A3-A5531E510DB2}\"><thm15:themeFamily xmlns:thm15=\"http://schemas.microsoft.com/office/thememl/2012/main\" name=\"Office 2013 - 2022 Theme\" id=\"{62F939B6-93AF-4DB8-9C6B-D6C7DFDC589F}\" vid=\"{4A3C46E8-61CC-4603-A589-7422A47A8E4A}\"/></a:ext></a:extLst></a:theme>"}, "styles": [[25, 37, 37, 37, 37, 37], [26, 37, 37, 37, 37, 37], [26, 37, 37, 37, 37, 37], [26, 37, 37, 37, 37, 37], [21, 37, 37, 37, 37, 37], [21, 37, 37, 37, 37, 37], [21, 20, 37, 37, 37, 37], [27, 37, 37, 37, 37, 37], [7, 7, 7, 38, 7, 7], [39, 1, 40, 38, 41, 19], [42, 1, 40, 38, 41, 43], [42, 1, 44, 38, 41, 43], [42, 1, 44, 38, 41, 43], [45, 46, 47, 38, 48, 48], [18, 37, 37, 37, 37, 37], [18, 37, 37, 37, 37, 37], [18, 37, 37, 37, 37, 37], [18, 37, 37, 37, 37, 37]]};
+const mainNS='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const relNS='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const pkgNS='http://schemas.openxmlformats.org/package/2006/relationships';
+const xdr='http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
+const art='http://schemas.openxmlformats.org/drawingml/2006/main';
+const xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+const xe=v=>String(v??'').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+const nf=new Intl.NumberFormat('ko-KR'); const won=n=>nf.format(n)+'원';
+const sum=a=>a.reduce((s,v)=>s+v,0);
+const weekdays=['일','월','화','수','목','금','토'];
+const oneDay=86400000;
+function dateAt(s,i=0){return new Date(Date.parse(s+'T00:00:00Z')+i*oneDay);}
+function dateText(s,i=0){const d=dateAt(s,i);return d.toISOString().slice(0,10).replace(/-/g,'.')+'.('+weekdays[d.getUTCDay()]+')';}
+function period(s,e,n){return n===1?dateText(s)+' / 당일출장':dateText(s)+' ~ '+dateText(e)+' / '+(n-1)+'박 '+n+'일';}
+function relation(rows){return xml+`<Relationships xmlns="${pkgNS}">${rows.map(([id,type,target])=>`<Relationship Id="${id}" Type="${type}" Target="${target}"/>`).join('')}</Relationships>`;}
+function cell(ref,v,st=0){
+ const a=`<c r="${ref}"${st?' s="'+st+'"':''}`;
+ if(v===undefined||v===null||v==='')return a+' />';
+ if(typeof v==='number')return a+`><v>${v}</v></c>`;
+ if(typeof v==='object')return a+`><f>${xe(v.f)}</f><v>${v.v}</v></c>`;
+ return a+` t="inlineStr"><is><t xml:space="preserve">${xe(v)}</t></is></c>`;
+}
+const calc=(f,v)=>({f,v});
+function row(r,values,style=[],h){return `<row r="${r}"${h?' ht="'+h+'" customHeight="1"':''}>${values.map((v,i)=>cell('ABCDEF'[i]+r,v,style[i])).join('')}</row>`;}
+function sheet(rows,widths,merges=[],drawing=false,breaks=[],scale=0){
+ const view='<sheetViews><sheetView workbookViewId="0" tabSelected="0"/></sheetViews>';
+ const cols='<cols>'+widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')+'</cols>';
+ const merge=merges.length?`<mergeCells count="${merges.length}">${merges.map(r=>`<mergeCell ref="${r}"/>`).join('')}</mergeCells>`:'';
+ const rb=breaks.length?`<rowBreaks count="${breaks.length}" manualBreakCount="${breaks.length}">${breaks.map(r=>`<brk id="${r}" min="0" max="16383" man="1"/>`).join('')}</rowBreaks>`:'';
+ return xml+`<worksheet xmlns="${mainNS}" xmlns:r="${relNS}"><sheetPr><pageSetUpPr fitToPage="${scale?0:1}"/></sheetPr>${view}<sheetFormatPr defaultRowHeight="16.5"/>${cols}<sheetData>${rows.join('')}</sheetData>${merge}<printOptions horizontalCentered="1"/><pageMargins left="0.30" right="0.30" top="0.35" bottom="0.35" header="0.15" footer="0.15"/><pageSetup paperSize="9" orientation="portrait" ${scale?`scale="${scale}"`:'fitToWidth="1" fitToHeight="0"'}/>${rb}${drawing?'<drawing r:id="rId1"/>':''}</worksheet>`;
+}
+function evidenceSheet(title,items,number,files){
+ const rows=[],merges=[],anchors=[],breaks=[],groups=new Map();
+ for(const {p,t,label,key,prefix} of items){
+  const groupKey=JSON.stringify([p.evidenceOwner??'common',key]);
+  if(!groups.has(groupKey))groups.set(groupKey,{p,label,prefix,images:[]});
+  groups.get(groupKey).images.push(t);
+ }
+ // A4 portrait at 100%: about 736px printable width; leave a small safety margin.
+ const widths=[51.43,1.15,51.43], lane=360, gap=8, maxHeight=975, gutter=10, px=9525;
+ let last=0;
+ const heading=(text,h,st)=>{
+  const r=++last;
+  rows.push(row(r,[text],[st],h));merges.push(`A${r}:C${r}`);
+ };
+ const space=height=>{
+  let pts=height*0.75;
+  while(pts>0){
+   const h=Math.min(300,pts);
+   rows.push(row(++last,[null],[],h));
+   pts-=h;
+  }
+ };
+ if(!groups.size){
+  heading(title,23,26);if(title!=='숙박비 영수증'){space(12);heading('첨부된 증빙이 없습니다.',22,18);}
+  return {body:sheet(rows,widths,merges,false,[],100),area:`$A$1:$C$${last}`};
+ }
+ for(const {p,label,prefix,images} of groups.values()){
+  const caption=(prefix?prefix+' — ':'')+p.name+(label?' ('+label+')':'');
+  const box=images.length===1?lane*2+gap:lane;
+  const lines=[];
+  for(let offset=0;offset<images.length;offset+=2){
+   const pair=images.slice(offset,offset+2).map(t=>({t,scale:Math.min(box/t.img.w,maxHeight/t.img.h)}));
+   lines.push({pair, height:Math.max(...pair.map(({t,scale})=>t.img.h*scale))});
+  }
+  for(let pos=0;pos<lines.length;){
+   if(last)breaks.push(last);
+   heading(title,23,26);heading(caption,29,26);space(4);
+   const first=lines[pos++],next=lines[pos];
+   let fitted=[first], factor=1;
+   if(next){
+    const fit=Math.min(1,(maxHeight-gutter)/(first.height+next.height));
+    if(fit>=0.85){fitted.push(next);pos++;factor=fit;}
+   }
+   for(const [index,{pair}] of fitted.entries()){
+    if(index)space(gutter);
+    const r=last+1;
+    let height=0;
+    for(const [slot,{t,scale}] of pair.entries()){
+     const wi=Math.max(1,Math.floor(t.img.w*scale*factor));
+     const he=Math.max(1,Math.floor(t.img.h*scale*factor));
+     height=Math.max(height,he);
+     const col=slot*2,inset=Math.max(0,Math.floor((box-wi)/2));
+     const id=anchors.length+1,name=`receipt_${number}_${id}.${t.img.ext}`;
+     files['xl/media/'+name]=t.img.bytes;
+     anchors.push([name,`<xdr:oneCellAnchor><xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>${inset*px}</xdr:colOff><xdr:row>${r-1}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="${wi*px}" cy="${he*px}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${name}" descr="${xe(p.name+' '+(t.type||'숙박')+' 증빙')}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId${id}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${wi*px}" cy="${he*px}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`]);
+    }
+    space(height);
+   }
+   space(2);
+  }
+ }
+ files[`xl/worksheets/_rels/sheet${number}.xml.rels`]=relation([['rId1',relNS+'/drawing',`../drawings/drawing${number}.xml`]]);
+ files[`xl/drawings/drawing${number}.xml`]=xml+`<xdr:wsDr xmlns:xdr="${xdr}" xmlns:a="${art}" xmlns:r="${relNS}">${anchors.map(x=>x[1]).join('')}</xdr:wsDr>`;
+ files[`xl/drawings/_rels/drawing${number}.xml.rels`]=relation(anchors.map(([name],i)=>[`rId${i+1}`,relNS+'/image','../media/'+name]));
+ return {body:sheet(rows,widths,merges,true,breaks,100),area:`$A$1:$C$${last}`};
+}
+function proofGroup(p,t,d,room=false){
+ const routes=!room&&!['주차','통행료','교통비 증빙'].includes(t.type)&&
+  (isTransportType(t.type)||t.type==='네이버지도 실시간추천 거리')
+  ? receiptRoutes(t,d):[];
+ const label=routes.length?routes.map(([a,b])=>a+' → '+b).join(' / '):
+  (room?(t.note||'숙박'):(t.type==='교통비 증빙'?'교통비 증빙':t.type));
+ const canonical=routes.length?routes.map(([a,b])=>[a,b].sort()).sort():label;
+ const key=JSON.stringify([t.type,canonical]);
+ return [t,...(t.extraProof||[])].filter(img=>img.img).map(img=>({p,t:img,label,key}));
+}
+function workbook(d){
+ const files={...assets.parts};
+ const transport=[],taxi=[],lodging=[];
+  for(const [index,p] of d.people.entries()){
+   const owner={name:p.name,evidenceOwner:index};
+  for(const t of p.trans){
+   const target=d.kind==='near'&&(t.type==='택시'||t.type==='주차')?taxi:transport;
+   const grouped=proofGroup(owner,t,d);
+   if(d.kind==='near'&&(t.type==='네이버지도 실시간추천 거리'||t.type==='통행료')){
+    const map=t.type==='네이버지도 실시간추천 거리';
+    for(const it of grouped){it.prefix=map?'1. 왕복거리':'2. 하이패스 영수증';it.label=map?t.note:'';it.key=it.prefix;}
+   }
+   target.push(...grouped);
+  }
+  for(const t of p.lodg)lodging.push(...proofGroup(owner,t,d,true));
+  }
+  for(const t of d.tripProof||[])transport.push(...proofGroup({name:"출장 공통"},t,d));
+ const names=['세부내역서'],printAreas=[];
+ const add=(name,fn)=>{names.push(name);files[`xl/worksheets/sheet${names.length}.xml`]=fn(names.length);};
+ const addEvidence=(name,title,items)=>add(name,i=>{
+  const {body,area}=evidenceSheet(title,items,i,files);
+  printAreas.push(`<definedName name="_xlnm.Print_Area" localSheetId="${i-1}">${xe("'"+name.replace(/'/g,"''")+"'!"+area)}</definedName>`);
+  return body;
+ });
+ files['xl/worksheets/sheet1.xml']=mainSheet(d);
+ if(d.kind==='foreign'){
+  add('전표 입력 참고',()=>voucherSheet(d));
+  addEvidence('해외출장 증빙','승인 산출내역·교통비 및 지급 증빙',transport);
+ }else{
+  const transitName='열차 운임 요금표';
+  addEvidence(transitName,transitName,transport);
+  addEvidence('숙박비 영수증','숙박비 영수증',lodging);
+  if(taxi.length)addEvidence('택시·주차비','택시·주차비 증빙',taxi);
+ }
+ files['_rels/.rels']=relation([['rId1',relNS+'/officeDocument','xl/workbook.xml']]);
+ files['xl/_rels/workbook.xml.rels']=relation([...names.map((n,i)=>[`rId${i+1}`,relNS+'/worksheet',`worksheets/sheet${i+1}.xml`]),['rId10',relNS+'/styles','styles.xml'],['rId11',relNS+'/theme','theme/theme1.xml']]);
+ files['xl/workbook.xml']=xml+`<workbook xmlns="${mainNS}" xmlns:r="${relNS}"><bookViews><workbookView activeTab="0"/></bookViews><sheets>${names.map((n,i)=>`<sheet name="${xe(n)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets><definedNames>${printAreas.join('')}</definedNames><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`;
+ const mime='application/vnd.openxmlformats-officedocument.';
+ const overrides={'xl/workbook.xml':mime+'spreadsheetml.sheet.main+xml','xl/styles.xml':mime+'spreadsheetml.styles+xml','xl/theme/theme1.xml':mime+'theme+xml'};
+ Object.keys(files).forEach(k=>{if(/^xl\/worksheets\/sheet\d+\.xml$/.test(k))overrides[k]=mime+'spreadsheetml.worksheet+xml';if(/^xl\/drawings\/drawing\d+\.xml$/.test(k))overrides[k]=mime+'drawing+xml';});
+ files['[Content_Types].xml']=xml+`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/>${Object.entries(overrides).map(([k,v])=>`<Override PartName="/${k}" ContentType="${v}"/>`).join('')}</Types>`;
+ return zip(files);
+}
+const crcTable=Uint32Array.from({length:256},(_,i)=>{let c=i;for(let j=0;j<8;j++)c=(c>>>1)^((c&1)?0xEDB88320:0);return c;});
+function crc(data){let c=0xFFFFFFFF;for(const b of data)c=(c>>>8)^crcTable[(c^b)&255];return (c^0xFFFFFFFF)>>>0;}
+function zip(files){
+ const enc=new TextEncoder(),local=[],central=[];let offset=0,total=0,count=0;
+ for(const [name,contents] of Object.entries(files)){
+  const n=enc.encode(name),b=typeof contents==='string'?enc.encode(contents):contents;
+  const a=new Uint8Array(30+n.length),q=new Uint8Array(46+n.length);
+  const av=new DataView(a.buffer),qv=new DataView(q.buffer);const hash=crc(b);
+  const a16=(i,v)=>av.setUint16(i,v,true),q16=(i,v)=>qv.setUint16(i,v,true),a32=(i,v)=>av.setUint32(i,v,true),q32=(i,v)=>qv.setUint32(i,v,true);
+  a32(0,0x04034b50);a16(4,20);a16(12,33);a32(14,hash);a32(18,b.length);a32(22,b.length);a16(26,n.length);a.set(n,30);
+  q32(0,0x02014b50);q16(4,20);q16(6,20);q16(14,33);q32(16,hash);q32(20,b.length);q32(24,b.length);q16(28,n.length);q32(42,offset);q.set(n,46);
+  local.push(a,b);central.push(q);offset+=a.length+b.length;total+=q.length;count++;
+ }
+ const end=new Uint8Array(22),v=new DataView(end.buffer);
+ v.setUint32(0,0x06054b50,true);v.setUint16(8,count,true);v.setUint16(10,count,true);v.setUint32(12,total,true);v.setUint32(16,offset,true);
+ return new Blob([...local,...central,end],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+// Interactive form.
+async function loadImage(f){
+ if(f.size>15*1024*1024)throw Error('이미지 한 장은 15 MB 이하여야 합니다.');
+ const bytes=new Uint8Array(await f.arrayBuffer());
+ const png=[137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v);
+ const jpg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+ const webp=String.fromCharCode(...bytes.slice(0,4))==='RIFF'&&String.fromCharCode(...bytes.slice(8,12))==='WEBP';
+ if(!png&&!jpg&&!webp)throw Error('PNG, JPEG, WebP 이미지 파일만 첨부할 수 있습니다.');
+ const url=URL.createObjectURL(f);
+ try{
+  const img=new Image();img.src=url;await img.decode();
+  const w=img.naturalWidth,h=img.naturalHeight;if(!w||!h||w*h>60000000)throw Error('이미지 해상도가 너무 높거나 파일을 읽을 수 없습니다.');
+  if(png&&!webp)return {w,h,ext:'png',bytes};
+  // Normalize JPEG EXIF orientation and convert WebP to a format Excel supports.
+  const canvas=document.createElement('canvas'),scale=Math.min(1,3200/Math.max(w,h));
+  canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
+  const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);
+  const ext=jpg?'jpg':'png';
+  const out=await new Promise(resolve=>canvas.toBlob(resolve,jpg?'image/jpeg':'image/png',0.92));
+  if(!out)throw Error('이미지 형식을 변환할 수 없습니다.');
+  return {w:canvas.width,h:canvas.height,ext,bytes:new Uint8Array(await out.arrayBuffer())};
+ }catch(e){throw Error(f.name+': '+e.message);}finally{URL.revokeObjectURL(url);}
+}
+
+
+const $=(sel,root=document)=>root.querySelector(sel), all=(sel,root=document)=>Array.from(root.querySelectorAll(sel));
+const TYPES={dom:'국내 일반출장',near:'근거리 출장',foreign:'해외출장'};
+const GRADES=['사장','전무','1급','2급','3급','4급 이하'];
+const DAILY=[30000,28000,25000,23000,21000,18000], MEAL=[45000,40000,35000,30000,30000,30000];
+const MODES=['KTX','SRT','일반열차','버스','항공','선박','회사차량','자차 운전','자차 동승'];
+const RAIL=['KTX','SRT','일반열차'];
+const FOREIGN_DOC=['승인 산출내역서','기안문','여행사 지급 증빙','항공권·교통비','기타 증빙'];
+const road=m=>m==='회사차량'||m==='자차 동승';
+const cls=(m,g)=>RAIL.includes(m)?(g<=2?'특실':'일반실'):m==='선박'?(g<=1?'1등급':'2등급'):m==='버스'?'실비 (프리미엄 가능)':'실비';
+function effectiveGrade(p){return p.roleRule==='chief'?2:p.roleRule==='pm'?3:p.roleRule==='temp'?5:p.grade;}
+function applyGroup(people,enabled){
+ for(const p of people)p.own=effectiveGrade(p);
+ const fingerprint=p=>JSON.stringify(p.days.map(day=>day.modes.map(m=>['자차 운전','자차 동승'].includes(m)?'자차':m)));
+ const match=enabled&&people.length>1&&people[0].days.some(d=>d.modes.length)&&people.every(p=>fingerprint(p)===fingerprint(people[0]));
+ const highest=Math.min(...people.map(p=>p.own));
+ for(const p of people)p.shared=match?highest:p.own;
+ return match;
+}
+function dailyRates(day,n){
+ const half=day.modes.some(road)||day.short==='half';
+ const per=day.holiday?0:half?0.5:1;
+ const meal=day.holiday&&day.short==='half'?Number(day.overlap):day.holiday||n===1?2/3:day.short==='half'?1/3:1;
+ return [per,meal];
+}
+function calculate(p,d){
+ const standard=d.kind==='dom'||(d.kind==='near'&&d.approval==='multi');
+ const dayPay=p.days.map((day,i)=>{
+  let [a,b]=standard?dailyRates(day,d.n):[0,0];
+  if(d.kind==='near'&&d.approval==='day'&&i===0)b=1/3;
+  if(d.kind==='near'&&d.approval==='night'&&i===0){a=1;b=2/3;}
+  return {a,b,per:DAILY[p.own]*a,meal:MEAL[p.shared]*b};
+ });
+ const per=Math.round(sum(dayPay.map(x=>x.per))),meal=Math.round(sum(dayPay.map(x=>x.meal)));
+ const incidental=sum(p.trans.filter(t=>t.type==='택시'||t.type==='주차').map(t=>t.amount));
+ const extra=standard?Math.max(0,incidental-per):incidental;
+ const regular=sum(p.trans.filter(t=>!['택시','주차'].includes(t.type)).map(t=>t.amount==null?0:t.limit==null?t.amount:Math.min(t.amount,t.limit)));
+ const driveDays=p.days.filter(day=>day.modes.includes('자차 운전')).length;
+ const mileage=d.kind==='near'&&!standard?Math.round(p.km*360*driveDays):0;
+ const hotel=sum(p.lodg.map(t=>Math.min(t.cap,t.amount)));
+ return {dayPay,per,meal,extra,incidental,regular,mileage,driveDays,tf:extra+regular+mileage,hotel,total:per+meal+extra+regular+mileage+hotel};
+}
+function heading(d){return [TYPES[d.kind]+' 세부 내역서','◎ 용역명: '+d.project,'◎ 출장지: '+d.place,'◎ 목적: '+d.purpose,'◎ 기간: '+period(d.start,d.end,d.n),'◎ 출장자: '+d.people.map(p=>p.name+(p.role?' '+p.role:'')).join(', ')];}
+const amountTerm=(value,count,ratio='')=>`₩${nf.format(value)}/인.일X1인X${count}일${ratio?'X'+ratio:''}`;
+function rateTerms(base,pay,key){
+ const ratios=[[1,''],[0.5,'1/2'],[2/3,'2/3'],[1/3,'1/3']];
+ const terms=ratios.map(([rate,ratio])=>[pay.filter(v=>v[key]===rate).length,ratio]).filter(([n])=>n).map(([n,r])=>amountTerm(base,n,r));
+ return terms.join(' + ')||amountTerm(base,0);
+}
+function receiptRoutes(t,d){
+ const kind=t.type==='버스'?(t.busKind||'고속버스'):t.type==='자차 기준 왕복운임'?'자차':t.type;
+ if(!t.from&&!t.to){
+  const note=(t.note||'').split(/\s*\/\s*(?:특실|일반실|[12]등급) 이용/)[0];
+  const bracket=note.match(/\(([^()]*(?:↔|→|->)[^()]*)\)/);
+  const legacy=(bracket?bracket[1]:note).replace(/^(?:(?:고속|시외|시내)?버스|SRT|KTX|자차)\s*(?:왕복|편도)?\s*[:：]?\s*(?=\S)/,'').split(/\s*\/\s*|\n/);
+  const parsed=legacy.map(x=>x.split(/\s*(?:↔|⇄|→|←|<->|->)\s*/)).filter(x=>x.length===2&&x.every(y=>y.trim())).map(([a,b])=>[a.trim(),b.trim(),kind]);
+  if(parsed.length)return parsed;
+ }
+ const a=t.from||d.origin,b=t.to||d.place;
+ return a&&b?[[a,b,kind]]:[];
+}
+function domesticRouteNote(p,d){
+ const groups=new Map();
+ const add=([a,b,kind])=>{
+  const key=JSON.stringify([a,b].sort());
+  if(!groups.has(key))groups.set(key,{a,b,modes:new Set()});
+  groups.get(key).modes.add(kind);
+ };
+ const covered=new Set();
+ for(const t of p.trans.filter(t=>t.amount!=null&&!['주차','통행료'].includes(t.type))){
+  const routes=receiptRoutes(t,d);
+  if(!routes.length)continue;
+  routes.forEach(add);covered.add(t.type);
+  if(t.type==='자차 기준 왕복운임')covered.add('자차 운전');
+ }
+ if(d.origin)for(const m of new Set(p.days.flatMap(x=>x.modes))){
+  if(!covered.has(m))add([d.origin,d.place,m==='버스'?'고속버스':m]);
+ }
+ return [...groups.values()].map(({a,b,modes})=>`${a} ↔ ${b} (${[...modes].join(', ')})`).join('\n');
+}
+function mainSheet(d){
+ const s=assets.styles,rs=[],ms=['A1:F1','A2:F2','A3:F3','A4:F4','A5:F5','A6:F6','B7:F7','A8:E8'];
+ const add=(i,v,k,h)=>rs.push(row(i,v,s[k-1],h));
+ const dom=d.kind==='dom',near=d.kind==='near',domestic=dom||near;
+ if(near)ms[6]='A7:E7';
+ const hd=domestic?[near?'근거리 출장비 세부 내역서':'국내 출장비 세부 내역서','◎ 용  역  명 : '+d.project,'◎ 출  장  지 : '+d.place,'◎ 목      적  : '+d.purpose,'◎ 기      간  : '+period(d.start,d.end,d.n),'◎ 출  장  자 : '+d.people.map(p=>p.name+(p.role?' '+p.role:'')).join(', ')]:heading(d);
+ hd.forEach((v,i)=>add(i+1,[v],i+1,i===0?30.75:20.1));
+ add(7,near?['◎ 출  장  비 :',null,null,null,null,'(단위 : 원)']:dom?['◎ 출  장  비 :','(단위 : 원)']:['◎ 출장비','(단위: 원)'],7,20.1);add(8,[],8,6.75);
+ let r=9;
+ if(d.kind==='foreign'){
+  add(r++,['출장자','구분','임직원 지급',null,'여행사 지급','합계'],9,25);
+  for(const p of d.people){add(r,[p.name,'승인 금액',p.employee,null,p.vendor,calc(`SUM(C${r},E${r})`,p.employee+p.vendor)],10,26);r++;}
+ }else for(const p of d.people){
+  const c=p.cost,a=r+1;
+  add(r,['출장자','구분','산출내역',null,'적용 금액','비고'],9,25);
+  if(dom){
+   const perText=rateTerms(DAILY[p.own],c.dayPay,'a'),mealText=rateTerms(MEAL[p.shared],c.dayPay,'b');
+   const perNote=p.days.some((day,i)=>day.modes.includes('회사차량')&&c.dayPay[i].a===0.5)?'회사차량 이용':'';
+   const mealNote=[p.shared<p.own?'동행자 높은 등급 적용':'',d.n===1?'당일 출장':''].filter(Boolean).join(' / ');
+   add(a,[p.name,'일비',perText,null,c.per,perNote],10,perText.length>59?39:25);
+   add(a+1,[null,'식비',mealText,null,c.meal,mealNote],11,mealText.length>59||mealNote.length>20?39:25);
+   const route=domesticRouteNote(p,d);
+   const transit=[c.regular||!c.extra?amountTerm(c.regular,1):'',c.extra?amountTerm(c.extra,1):''].filter(Boolean).join(' + ');
+   const routeLines=route.split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil([...line].reduce((a,x)=>a+(x.charCodeAt(0)>255?2:1),0)/32)),0);
+   add(a+2,[null,'교통비',transit,null,c.tf,route],12,Math.max(30,16*routeLines+9));
+   const nights=new Map();
+   for(const t of p.lodg){const paid=Math.min(t.cap,t.amount);nights.set(paid,(nights.get(paid)||0)+1);}
+   const lodging=d.n===1?null:[...nights].map(([paid,n])=>amountTerm(paid,n)).join(' + ');
+   add(a+3,[null,'숙박비',lodging,null,d.n===1?null:c.hotel,d.n===1?'':`${d.n-1}박${d.n}일`],13,Math.max(29,15*Math.ceil((lodging||'').length/58)+9));
+  }else{
+   const toll=sum(p.trans.filter(t=>t.type==='통행료').map(t=>t.amount));
+   const other=c.regular-toll;
+   const transit=[c.mileage?`자차: ${p.km}km(왕복) X ₩360 X ${c.driveDays}일`:'',toll?`통행료 ${won(toll)}`:'',other?`기타 교통비 ${won(other)}`:'',c.incidental?`택시·주차 ${won(c.extra)}`:''].filter(Boolean).join(' + ');
+   const trafficAmount=c.mileage?calc(`ROUND(${p.km}*360*${c.driveDays},0)+${c.regular+c.extra}`,c.tf):(c.tf||null);
+   add(a,[p.name,'일비',c.per?rateTerms(DAILY[p.own],c.dayPay,'a'):null,null,c.per||null,null],10,29);
+   add(a+1,[null,'식비',c.meal?rateTerms(MEAL[p.shared],c.dayPay,'b'):null,null,c.meal||null,c.meal&&p.shared<p.own?'동행자 높은 등급 적용':null],11,29);
+   add(a+2,[null,'교통비',transit,null,trafficAmount,[c.mileage?'근거리출장 (자차 이용)':'',toll?'하이패스비':'',c.incidental?'택시·주차':''].filter(Boolean).join(' + ')],12,45);
+   add(a+3,[null,'숙박비',p.lodg.length?'박별 실비와 한도 중 낮은 금액':null,null,c.hotel||null,p.lodg.length?`${p.lodg.length}박`:''],13,29);
+  }
+  add(a+4,[null,'계',null,null,calc(`SUM(E${a}:E${a+3})`,c.total),null],14,25);
+  for(let k=r;k<=a+3;k++)ms.push(`C${k}:D${k}`);
+  ms.push(`A${a}:A${a+4}`,`B${a+4}:D${a+4}`);r+=6;
+ }
+ const notes=d.kind==='foreign'?['승인된 산출내역서의 원화 지급액을 입력했습니다. 국가별 여비 및 환율은 자동 산정하지 않습니다.','기안 완료 후 출장비 신청 없이 전표만 작성합니다. 전표 입력 참고 시트를 확인하세요.']: [d.kind==='near'?`승인 예외: ${APPROVAL[d.approval]}. ERP 출장 구분: ${d.approval==='none'?'근거리출장':'국내출장'}.`:'ERP 출장 구분: 국내출장.',d.shared?'동일 일정·구간과 교통수단을 확인한 동행에 최고 등급을 적용했습니다(일비 제외).':'동행 공통 등급을 적용하지 않았습니다.', '월을 넘기는 출장의 회계 처리 시 영수증 날짜를 확인하세요. 동일인·동일 기간 중복 신청 여부는 ERP에서 확인하세요.'];
+ if(near){if(d.nearApprovalNote)notes.push('여비 예외 승인 근거: '+d.nearApprovalNote);if(d.nearDistanceReason)notes.push('거리 기준 초과 처리 근거: '+d.nearDistanceReason);}
+ (dom?["※ 회사 차량 이용 시, 일비 1/2 지급", "※ 당일 출장 시, 식비 2/3 지급", "※ 전일 오후 출발 또는 익일 오전 복귀시 해당일은 일비 1/2, 식비 1/3 지급", "※ 숙박비 한도 7만원 / 광역시는 한도 8만원까지 가능(대전,부산,울산,대구,광주)"]:notes).forEach((v,i)=>{add(r+i,[v],dom?15:2,dom?25:30);if(!dom)ms.push(`A${r+i}:F${r+i}`);});
+ return sheet(rs,dom?[12.875, 10.875, 21.0, 33.75, 23.375, 33.375]:[15,13,28,12,17,31],ms,false,[],dom?60:0);
+}
+function voucherSheet(d){
+ const rs=[row(1,['출장자','계정과목','계정세목','차변','대변','비고'],assets.styles[8],25)];
+ let j=2;
+ for(const p of d.people){
+  rs.push(row(j++,[p.name,'경)여비교통비(해외출장비)',p.name,p.employee+p.vendor,null,`용역 / 귀속부서: ${p.dept} / 코스트센터: ${d.project} / 적요: ${d.purpose}`],[18,18,18,18,18,18],34));
+  if(p.employee)rs.push(row(j++,[p.name,'미지급금(임직원비용)',p.name,null,p.employee,'임직원 지급분'],[18,18,18,18,18,18],23));
+  if(p.vendor)rs.push(row(j++,[p.name,'미지급금(일반)',p.payee,null,p.vendor,'여행사 지급분 (항공료·보험료 등)'],[18,18,18,18,18,18],23));
+ }
+ return sheet(rs,[19,35,23,17,17,70]);
+}
+
+
+const APPROVAL={none:'기본 (일비·식비·숙박비 미지급)',day:'1일 출장 인정 (식비 1/3)',night:'숙박 필요 인정 (일비 1일·숙박 1박·식비 2/3)',multi:'2박 이상 숙박 인정 (일반 여비 적용)'};
+const LOCAL_TYPES=['통행료','택시','주차'];
+const DOM_TYPES=[...MODES.slice(0,6),'자차 기준 왕복운임','통행료','택시','주차'];
+const CITIES=['기타 (7만원)','대전','부산','울산','대구','광주'];
+const opt=(pairs)=>pairs.map(([v,t])=>`<option value="${xe(v)}">${xe(t)}</option>`).join('');
+const list=(items)=>opt(items.map(x=>[x,x]));
+const cash=(c)=>`<input class="${c}" type="number" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="원">`;
+const proof='<label>증빙 이미지 추가 (여러 장 가능)<input type="file" multiple class="proof" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"></label>';
+const read=(el,q)=>$(q,el).value.trim();
+const fail=(message)=>{throw Error(message);};
+const active=()=>$('#kind').value;
+const standardUI=()=>active()==='dom'||(active()==='near'&&$('#approval').value==='multi');
+const range=()=>{const a=$('#start').value,b=$('#end').value;const n=(dateAt(b)-dateAt(a))/oneDay+1;return a&&b&&n>=1&&n<=31?n:0;};
+function make(tag,cl,html){const el=document.createElement(tag);el.className=cl;el.innerHTML=html;return el;}
+function legPick(k){return `<label>이동 ${k}<select class="mode">${opt([['','이동 없음']])}${list(MODES)}</select></label>`;}
+function dayUI(date,isSunday){
+ const el=make('div','day',`<strong>${date}</strong><div class="grid">${[1,2,3].map(legPick).join('')}</div><div class="grid standard"><label><span>일요일·공휴일</span><input type="checkbox" class="holiday" ${isSunday?'checked disabled':''}></label><label class="specialBox">이동일 기준<select class="special"><option value="normal">일반</option><option value="half">전일 오후 출발 / 익일 오전 복귀</option><option value="meeting">해당일 발주처 회의로 1일 인정</option></select></label><label class="meetingBox" hidden>회의 내용<input class="meeting" maxlength="160"></label><label class="overlapBox" hidden>휴일·시간 조건 중복: 확인된 식비 기준<select class="overlap"><option value="">선택</option><option value="0.6666666666666666">휴일 2/3</option><option value="0.3333333333333333">시간 감액 1/3</option></select></label></div>`);
+ const update=()=>{const mode=read(el,'.special');$('.meetingBox',el).hidden=mode!=='meeting';$('.overlapBox',el).hidden=mode!=='half'||!$('.holiday',el).checked;};
+ el.addEventListener('change',update);el.updateSpecial=update;return el;
+}
+function roomUI(date){return make('div','room grid',`<strong>${date} 숙박</strong><label>숙소명 (선택)<input class="hotelName" maxlength="80" placeholder="예: 서울호텔"></label><label>숙박 지역<select class="city">${list(CITIES)}</select></label><label>실결제액${cash('paid')}</label><div class="lodging-upload">${proof.replace('증빙 이미지 추가','숙박 영수증 이미지 추가')}</div>`);}
+function updateDates(rebase=false){
+ const n=range(),a=$('#start').value;
+ $('#period').textContent=n?period(a,$('#end').value,n):'기간은 최대 31일이며 출발일과 복귀일을 확인하세요.';
+ for(const p of all('.person')){
+  for(const [key,num] of [['.days',n],['.rooms',Math.max(0,n-1)]]){
+   const wrap=$(key,p),existing=Array.from(wrap.children),old=new Map(existing.map(x=>[x.dataset.date,x]));
+   const wanted=[];
+   for(let i=0;i<num;i++){
+    const dt=dateAt(a,i),id=dt.toISOString().slice(0,10),v=dateText(a,i);
+    const sunday=dt.getUTCDay()===0;
+    const el=(rebase?existing[i]:old.get(id))||(key==='.days'?dayUI(v,sunday):roomUI(v));
+    if(rebase){
+     $('strong',el).textContent=v+(key==='.rooms'?' 숙박':'');
+     if(key==='.days'){
+      const holiday=$('.holiday',el);
+      if(el.dataset.date!==id){holiday.checked=sunday;$('.overlap',el).value='';}
+      holiday.disabled=sunday;
+     }
+    }
+    if(key==='.rooms')wireFile($('.proof',el));
+    el.dataset.date=id;
+    if(key==='.days'){
+     $('.specialBox',el).hidden=n===1||(i!==0&&i!==n-1);
+     if($('.specialBox',el).hidden)$('select.special',el).value='normal';
+     el.updateSpecial();
+    }
+    wanted.push(el);
+   }
+   for(const el of Array.from(wrap.children))if(!wanted.includes(el))el.remove();
+   wanted.forEach((el,i)=>{if(wrap.children[i]!==el)wrap.insertBefore(el,wrap.children[i]||null);});
+  }
+ }
+ updateView();
+}
+function lodgingPanel(kind,n,approval){
+ if(kind==='foreign')return {show:false,text:'해외 숙박 영수증은 아래 출장자별 정산 증빙의 기타 증빙으로 첨부하세요.'};
+ if(!n)return {show:false,text:'위 출장 기본 정보에 출발일과 복귀일을 입력하면 날짜별 숙박 영수증 첨부 칸이 나타납니다.'};
+ if(n===1)return {show:false,text:'당일 출장이므로 숙박비 입력과 영수증 첨부가 필요하지 않습니다.'};
+ if(kind==='near'&&!['night','multi'].includes(approval))return {show:false,text:'근거리 출장의 숙박비는 결재권자의 숙박 승인이 있는 경우에만 입력할 수 있습니다. 위 승인 예외를 확인하세요.'};
+ return {show:true,text:approval==='night'&&kind==='near'?'숙박 필요 승인: 승인된 1박의 실결제액과 영수증을 입력하세요.':'숙박일마다 실결제액을 적고 영수증 이미지를 올리세요. 한 숙박일에 여러 장을 올릴 수 있습니다.'};
+}
+function updateNearWarning(){
+ const near=active()==='near';
+ const over=near&&(Number($('#distance').value)>100||(!standardUI()&&all('.person').some(p=>all('.mode',p).some(e=>e.value==='자차 운전')&&Number($('.km',p).value)>200)));
+ $('#nearDistanceBox').hidden=!over;
+ $('#nearDistanceWarning').textContent=over?'거리 기준을 초과했습니다. 근거리 처리가 승인된 경우에만 처리 근거를 입력하세요.':'';
+ $('#nearApprovalBox').hidden=!near||$('#approval').value==='none';
+}
+function updateView(){
+ updateNearWarning();
+ const k=active(),st=standardUI(),apr=$('#approval').value;
+ $('#app').dataset.kind=k;$('#app').dataset.standard=String(st);
+ $('#groupBox').hidden=!(st||(k==='near'&&apr!=='none'));
+ const lodging=lodgingPanel(k,range(),apr);
+ for(const p of all('.person')){
+  $('.roomHelp',p).textContent=lodging.text;
+  $('.rooms',p).hidden=!lodging.show;
+  for(const sel of all('select.mode',p))for(const o of sel.options)o.disabled=k==='near'&&!st&&o.value&&!['회사차량','자차 운전','자차 동승'].includes(o.value);
+  for(const e of all('.receipt',p))refreshReceipt(e,k,st);
+ }
+}
+function transportTypes(k,st){return k==='foreign'?FOREIGN_DOC:st?DOM_TYPES:LOCAL_TYPES;}
+function refreshReceipt(el,k,st){
+ const type=$('.type',el),old=type.value;
+ const vals=transportTypes(k,st),key=vals.join('|');
+ if(el.dataset.key!==key){type.innerHTML=opt([['','선택']])+list(vals);type.value=vals.includes(old)?old:'';el.dataset.key=key;}
+ const t=type.value;
+ $('.fareBox',el).hidden=!RAIL.includes(t)&&t!=='선박';
+ $('.rateBox',el).hidden=$('.fareBox',el).hidden;
+ $('.paidBox',el).hidden=k==='foreign';
+ $('.routeBox',el).hidden=k!=='dom'||!t||['주차','통행료'].includes(t);
+ $('.busBox',el).hidden=k!=='dom'||t!=='버스';
+}
+function makeReceipt(p){
+ const el=make('div','receipt grid',`<label>증빙 유형<select class="type"></select></label><label>메모 / 기존 구간<input class="note" maxlength="100"></label><label class="busBox">버스 종류<select class="busKind">${list(['고속버스','시외버스','시내버스','기타 버스'])}</select></label><div class="routeBox grid"><label>구간 출발지<input class="routeFrom" maxlength="80" placeholder="예: 성남 (미입력 시 공통 출발지)"></label><label>구간 도착지<input class="routeTo" maxlength="80" placeholder="예: 서울 (미입력 시 출장지)"></label></div><label class="paidBox">실결제액 / 기준 운임${cash('paid')}</label><label class="fareBox">승차·승선 등급<select class="fare">${opt([['','선택']])}${list(['특실','일반실','1등급','2등급'])}</select></label><label class="rateBox">적용 등급 운임 한도 (초과 등급일 때 필수)${cash('limit')}</label>${proof}<button type="button" class="remove">이 증빙 삭제</button>`);
+ $('.type',el).onchange=()=>{const t=read(el,'.type');const sel=$('.fare',el);sel.innerHTML=opt([['','선택']])+list(t==='선박'?['1등급','2등급']:['특실','일반실']);refreshReceipt(el,active(),standardUI());};
+ $('.remove',el).onclick=()=>el.remove();$('.receipts',p).append(el);refreshReceipt(el,active(),standardUI());wireFile($('.proof',el));return el;
+}
+function newPerson(withReceipt=true){
+ const p=make('section','person',`<div class="top"><h3>출장자</h3><button type="button" class="removeP">출장자 삭제</button></div><div class="grid"><label>성명<input class="name" maxlength="40"></label><label>직책 표기 (선택)<input class="role" maxlength="30"></label><label class="notforeign">직급<select class="grade">${opt([['','선택'],...GRADES.map((x,i)=>[i,x])])}</select></label><label class="notforeign">직책·고용 예외<select class="roleRule">${opt([['none','해당 없음'],['chief','본부장·단장 (1급)'],['pm','실장·PM (2급)'],['temp','계약직·파견직 (4급 이하)']])}</select></label></div><div class="foreign grid"><label>소속 부서<input class="dept" maxlength="80"></label><label>임직원 지급액 (원화, 없으면 0)${cash('employee')}</label><label>여행사 지급액 (원화, 없으면 0)${cash('vendor')}</label><label>여행사 거래처<input class="payee" value="동국관광" maxlength="80"></label></div><div class="near notstandard grid"><label>자차 왕복거리 (km)<input class="km" type="number" step="0.01" min="0" max="800"></label><label>도착지 주소<input class="addr" maxlength="160"></label><label>1. 왕복거리 (네이버지도 캡처)<input type="file" class="mapImg" multiple accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"></label></div><div class="notforeign"><h4>날짜별 교통수단 및 예외</h4><div class="days"></div></div><div class="roomBox"><h4>숙박비 및 영수증 첨부</h4><p class="roomHelp hint" aria-live="polite"></p><div class="rooms" hidden></div></div><div class="top"><h4>이 출장자의 교통비·정산 증빙</h4><button type="button" class="addR">교통비 증빙 행 추가</button></div><p class="hint">구간을 적고 승차권·영수증을 올리세요. 같은 구간의 이미지는 여러 장 올릴 수 있으며 엑셀에서는 A4 인쇄 영역에 한 줄에 두 장씩 표시됩니다. 근거리 자차의 하이패스 영수증은 증빙 유형에서 ‘통행료’를 선택해 따로 첨부하세요.</p><div class="receipts"></div>`);
+ $('.addR',p).onclick=()=>{if(all('.receipt',p).length>=60){$('#status').textContent='출장자당 증빙 행은 최대 60개입니다.';return;}makeReceipt(p);};
+ $('.removeP',p).onclick=()=>{if(all('.person').length>1){p.remove();updateView();}};
+ $('.name',p).oninput=()=>{$('h3',p).textContent=read(p,'.name')||'출장자';};
+ $('.roleRule',p).onchange=()=>{$('.grade',p).disabled=read(p,'.roleRule')!=='none';};
+ $('#people').append(p);wireFile($('.mapImg',p));updateDates();if(withReceipt)makeReceipt(p);return p;
+}
+function number(el,q,min=0,max=1000000000,integer=true){
+ const raw=read(el,q),n=Number(raw);
+ if(!raw||!Number.isFinite(n)||n<min||n>max||(integer&&!Number.isInteger(n)))fail('금액 또는 거리 입력값을 확인하세요.');
+ return n;
+}
+async function gather(loadProof){
+ const d={kind:active(),start:$('#start').value,end:$('#end').value,n:range(),project:read(document,'#project')||'[0000000]공통용역',place:read(document,'#place'),origin:read(document,'#origin'),purpose:read(document,'#purpose'),approval:$('#approval').value,people:[]};
+ const st=standardUI(),jobs=[];
+ const capture=(t,file)=>{if(!file)fail(t.type+' 증빙 이미지를 첨부하세요.');jobs.push([t,file]);};
+ if(!d.n||!d.place||!d.purpose)fail('출장지, 목적, 유효한 출장 기간을 입력하세요.');
+ if(d.kind!=='foreign'&&read(document,'#distance')){
+  const km=number(document,'#distance',0.01,20000,false);
+  if(d.kind==='dom'&&km<=100)fail('편도 100km 이하는 근거리 출장을 선택하세요.');
+  d.distance=km;
+ }
+ if(d.kind==='near'){
+  if(d.approval==='day'&&d.n!==1||d.approval==='night'&&d.n!==2||d.approval==='multi'&&d.n<3)fail('승인 예외와 출장 기간이 일치하는지 확인하세요.');
+  if(d.approval!=='none'){
+   d.nearApprovalNote=read(document,'#nearApprovalNote');
+   if(!$('#approved').checked||!d.nearApprovalNote)fail('결재권자 승인에 체크하고 승인 사유 또는 문서번호를 입력하세요.');
+  }
+ }
+ for(const el of all('.person')){
+  const p={name:read(el,'.name'),role:read(el,'.role'),trans:[],lodg:[],days:[],km:0};
+  if(!p.name)fail('모든 출장자의 성명을 입력하세요.');
+  if(d.kind==='foreign'){
+   p.dept=read(el,'.dept');p.payee=read(el,'.payee');
+   p.employee=number(el,'.employee');p.vendor=number(el,'.vendor');
+   if(!p.dept||p.vendor&&!p.payee||!(p.employee+p.vendor))fail(p.name+'님의 귀속부서, 거래처 및 승인 지급액을 확인하세요.');
+  }else{
+   p.roleRule=read(el,'.roleRule');p.grade=p.roleRule==='none'?(d.kind==='near'&&d.approval==='none'&&!read(el,'.grade')?5:number(el,'.grade',0,5)):5;
+   for(const day of all('.day',el)){
+    const modes=all('.mode',day).map(x=>x.value).filter(Boolean);
+    if(!st&&modes.some(m=>!['회사차량','자차 운전','자차 동승'].includes(m)))fail('근거리 기본·1박 이내 예외에는 회사차량 또는 자차를 선택하세요. 택시·주차는 증빙 행에 입력하세요.');
+    const x={modes,holiday:$('.holiday',day).checked,short:read(day,'.special'),meeting:read(day,'.meeting'),overlap:read(day,'.overlap')};
+    if(st&&x.short==='meeting'&&!x.meeting)fail(p.name+'님의 발주처 회의 내용을 입력하세요.');
+    if(st&&x.holiday&&x.short==='half'&&!x.overlap)fail(p.name+'님의 휴일·시간 조건 중복일 식비 기준을 선택하세요.');
+    p.days.push(x);
+   }
+   if(!st&&p.days.some(x=>x.modes.includes('자차 운전'))){
+    p.km=number(el,'.km',0.01,800,false);const addr=read(el,'.addr');
+    if(!addr)fail(p.name+'님의 자차 도착지 주소를 입력하세요.');
+    const map={type:'네이버지도 실시간추천 거리',note:`소노타워 ↔ ${addr} / 왕복 ${p.km}km`,amount:null};
+    const files=proofFiles($('.mapImg',el));p.trans.push(map);capture(map,files[0]);
+    map.extraProof=files.slice(1).map(file=>{const t={type:map.type};capture(t,file);return t;});
+   }
+   if(st||d.approval==='night')for(const r of all('.room',el)){
+    const files=proofFiles($('.proof',r)),val=read(r,'.paid');if(!files.length&&!val)continue;
+    const city=read(r,'.city'),hotel=read(r,'.hotelName');const t={type:'숙박',note:r.dataset.date+' / '+(hotel||city),cap:city===CITIES[0]?70000:80000,amount:number(r,'.paid',1)};
+    p.lodg.push(t);capture(t,files[0]);
+    t.extraProof=files.slice(1).map(f=>{const extra={type:t.type};capture(extra,f);return extra;});
+   }
+  }
+  for(const r of all('.receipt',el)){
+    const type=read(r,'.type'),files=proofFiles($('.proof',r)),file=files[0],val=read(r,'.paid');
+   if(!type&&!file&&!val)continue;
+   if(!transportTypes(d.kind,st).includes(type))fail(p.name+'님의 증빙 유형을 선택하세요.');
+   const t={type,note:read(r,'.note'),from:read(r,'.routeFrom'),to:read(r,'.routeTo'),busKind:read(r,'.busKind'),amount:d.kind==='foreign'?null:number(r,'.paid',1),fare:read(r,'.fare'),limit:null};
+   if(type==='자차 기준 왕복운임'&&!t.note)fail('자차 기준 왕복운임의 역·터미널과 구간을 메모에 적으세요.');
+   if(RAIL.includes(type)||type==='선박'){
+    const allowed=type==='선박'?['1등급','2등급']:['특실','일반실'];
+    if(!allowed.includes(t.fare))fail(p.name+'님의 '+type+' 증빙 등급을 선택하세요.');
+    if(read(r,'.limit'))t.limit=number(r,'.limit',1);
+   }
+    p.trans.push(t);capture(t,file);
+   t.extraProof=files.slice(1).map(f=>{const extra={type:t.type,note:f.name,amount:null};capture(extra,f);return extra;});
+  }
+  d.people.push(p);
+ }
+ if(d.kind==='foreign'){
+  if(!d.people.some(p=>p.trans.some(t=>t.type==='승인 산출내역서')))fail('승인 산출내역서 이미지가 한 장 이상 필요합니다.');
+  d.total=sum(d.people.map(p=>p.employee+p.vendor));
+ }else{
+  const groupEnabled=!$('#groupBox').hidden&&$('#group').checked;
+  d.shared=applyGroup(d.people,groupEnabled);
+  d.groupMismatch=groupEnabled&&d.people.length>1&&!d.shared;
+  for(const p of d.people){
+   const driver=p.days.some(x=>x.modes.includes('자차 운전'));
+   if(p.trans.some(t=>['자차 기준 왕복운임','통행료'].includes(t.type))&&!driver)fail(p.name+'님의 자차 운전 일자를 선택하세요.');
+   if(st&&driver&&!p.trans.some(t=>t.type==='자차 기준 왕복운임'))fail(p.name+'님의 자차 기준 왕복운임과 요금표 증빙을 입력하세요.');
+   for(const t of p.trans){
+    if(MODES.slice(0,6).includes(t.type)&&!p.days.some(x=>x.modes.includes(t.type)))fail(p.name+'님의 '+t.type+' 이용 일자를 선택하세요.');
+    if(!RAIL.includes(t.type)&&t.type!=='선박')continue;
+    const upper=t.type==='선박'?'1등급':'특실';
+    if(t.fare===upper&&cls(t.type,p.shared)!==upper){
+     if(t.limit==null)fail(p.name+'님의 '+t.type+' '+cls(t.type,p.shared)+' 기준 운임을 증빙 행에 입력하세요.');
+     t.note+=(t.note?' / ':'')+`${t.fare} 이용, ${cls(t.type,p.shared)} 한도 적용`;
+    }else{t.limit=null;t.note+=(t.note?' / ':'')+`${t.fare} 이용`;}
+   }
+   if(d.kind==='dom'){
+    for(const t of p.trans.filter(t=>t.amount!=null&&!['주차','통행료'].includes(t.type))){
+     if(!receiptRoutes(t,d).length)fail(p.name+'님의 '+t.type+' 출발지를 입력하세요. 공통 교통 출발지 또는 증빙 행에 입력할 수 있습니다.');
+    }
+   }
+   p.cost=calculate(p,d);
+  }
+  d.total=sum(d.people.map(p=>p.cost.total));
+ }
+ if(d.kind==='near'&&(d.distance>100||d.people.some(p=>p.km>200))){
+  d.nearDistanceReason=read(document,'#nearDistanceReason');
+  if(!d.nearDistanceReason)fail('거리 기준을 초과했습니다. 근거리 처리 승인 근거를 입력하거나 출장 유형을 변경하세요.');
+ }
+ d.tripProof=proofFiles($('#tripProof')).map(file=>{
+  const t={type:'교통비 증빙',note:file.name,amount:null};capture(t,file);return t;
+ });
+ if(!d.tripProof.length&&!jobs.some(([t])=>isTransportType(t.type)))fail('교통비 증빙 이미지를 첨부하세요. 출장자별 교통비·거리 증빙에 올린 이미지도 인정됩니다.');
+ if(sum(jobs.map(([t,f])=>f.size))>40*1024*1024)fail('증빙 이미지는 총 40 MB 이하로 첨부하세요.');
+ if(loadProof){let bytes=0;for(const [t,f] of jobs){t.img=await loadImage(f);bytes+=t.img.bytes.length;if(bytes>55*1024*1024)fail('변환된 증빙이 너무 큽니다.');}}
+ return d;
+}
+const savedFiles=new WeakMap(), fileWidgets=new WeakMap();
+const proofFiles=el=>savedFiles.get(el)||[];
+function showFiles(el){
+ const ui=fileWidgets.get(el),files=proofFiles(el);
+ ui.info.textContent=files.length?`첨부 이미지 ${files.length}장`:'첨부된 이미지 없음';
+ ui.clear.hidden=!files.length;
+ ui.list.replaceChildren();
+ if(el.multiple)files.forEach((f,i)=>{
+  const li=document.createElement('li');li.textContent=f.name;
+  const remove=document.createElement('button');remove.type='button';remove.textContent='제거';
+  remove.setAttribute('aria-label',f.name+' 제거');
+  remove.onclick=()=>{setFiles(el,files.filter((_,j)=>j!==i));$('#preview').replaceChildren();};
+  li.append(remove);ui.list.append(li);
+ });else if(files.length)ui.info.textContent+=' · '+files[0].name;
+}
+function setFiles(el,files=[]){el.value='';savedFiles.set(el,files);showFiles(el);}
+function wireFile(el){
+ if(fileWidgets.has(el))return;
+ const multi=el.multiple||el.id==='tripProof'||!!el.closest('.receipt');
+ if(multi)el.multiple=true;
+ if(el.closest('.receipt'))el.setAttribute('aria-label','증빙 이미지 추가 (여러 장 가능)');
+ const info=document.createElement('small');info.className='file-info';info.setAttribute('aria-live','polite');el.after(info);
+ const list=document.createElement('ul');list.className='file-list';if(multi)info.after(list);
+ const clear=document.createElement('button');clear.type='button';clear.className='file-clear';clear.textContent='이미지 비우기';el.closest('label').after(clear);
+ fileWidgets.set(el,{info,clear,list});
+ el.addEventListener('change',()=>{
+  const incoming=Array.from(el.files);if(!incoming.length)return;
+  setFiles(el,multi?[...proofFiles(el),...incoming]:incoming);$('#preview').replaceChildren();
+ });
+ clear.onclick=()=>{setFiles(el);$('#preview').replaceChildren();};
+ showFiles(el);
+}
+const isTransportType=t=>DOM_TYPES.includes(t)||t==='네이버지도 실시간추천 거리'||t==='항공권·교통비';
+const baseKeys=['kind','distance','project','place','origin','purpose','start','end','approval','approved','group','nearDistanceReason','nearApprovalNote'];
+const personKeys=['name','role','grade','roleRule','dept','employee','vendor','payee','km','addr'];
+const dayKeys=['holiday','special','meeting','overlap'],roomKeys=['city','paid','hotelName'],receiptKeys=['type','note','routeFrom','routeTo','busKind','paid','fare','limit'];
+function fields(root,keys,prefix='.'){
+ return Object.fromEntries(keys.map(k=>{const e=$(prefix+k,root);return [k,e.type==='checkbox'?e.checked:e.value];}));
+}
+function fill(root,keys,values,prefix='.'){
+ for(const k of keys){if(!(k in values))continue;const e=$(prefix+k,root);if(e.type==='checkbox')e.checked=values[k];else e.value=values[k];}
+}
+function snapshot(title){
+ const base=fields(document,baseKeys,'#');
+ const people=all('.person').map(p=>({fields:fields(p,personKeys),map:proofFiles($('.mapImg',p)),
+  days:all('.day',p).map(el=>({fields:fields(el,dayKeys),modes:all('.mode',el).map(e=>e.value)})),
+  rooms:all('.room',p).map(el=>({fields:fields(el,roomKeys),files:proofFiles($('.proof',el))})),
+  receipts:all('.receipt',p).map(el=>({fields:fields(el,receiptKeys),files:proofFiles($('.proof',el))}))}));
+ const proof=proofFiles($('#tripProof'));
+ const images=[...proof,...people.flatMap(p=>[...p.map,...p.rooms.flatMap(r=>r.files),...p.receipts.flatMap(r=>r.files)])];
+ if(images.some(f=>f.size>15*1024*1024)||sum(images.map(f=>f.size))>40*1024*1024)fail('내역마다 이미지 한 장은 15 MB, 전체는 40 MB 이하여야 합니다.');
+ return {version:1,title,base,people,proof,updated:Date.now()};
+}
+function restore(data){
+ if(data.version!==1)fail('이 버전에서 불러올 수 없는 저장 내역입니다.');
+ for(const id of ['origin','nearDistanceReason','nearApprovalNote'])$('#'+id).value='';
+ fill(document,baseKeys,data.base,'#');
+ $('#people').replaceChildren();
+ for(const item of data.people){
+  const el=newPerson(false);fill(el,personKeys,item.fields);$('.name',el).oninput();$('.roleRule',el).onchange();
+  setFiles($('.mapImg',el),item.map);
+  all('.day',el).forEach((day,i)=>{
+   const x=item.days[i];if(!x)return;
+   fill(day,dayKeys,x.fields);if($('.holiday',day).disabled)$('.holiday',day).checked=true;
+   all('.mode',day).forEach((e,j)=>{e.value=x.modes[j]||'';});day.updateSpecial();
+  });
+  all('.room',el).forEach((room,i)=>{const x=item.rooms[i];if(x){fill(room,roomKeys,x.fields);setFiles($('.proof',room),x.files);}});
+  if(!item.receipts.length)makeReceipt(el);
+   for(const x of item.receipts){const receipt=makeReceipt(el);$('.type',receipt).value=x.fields.type;$('.type',receipt).onchange();fill(receipt,receiptKeys,x.fields);setFiles($('.proof',receipt),x.files);}
+ }
+ setFiles($('#tripProof'),data.proof);$('#archiveTitle').value=data.title;
+ $('#shiftDate').value='';$('#proofStatus').textContent='';$('#preview').replaceChildren();$('#status').textContent='';updateView();
+}
+function openArchive(){
+ return new Promise((resolve,reject)=>{
+  const req=indexedDB.open('wrks-trip-archive',1);
+  req.onupgradeneeded=()=>req.result.createObjectStore('trips',{keyPath:'id',autoIncrement:true});
+  req.onsuccess=()=>resolve(req.result);
+  req.onerror=()=>reject(req.error);
+  req.onblocked=()=>reject(Error('다른 탭에서 이 프로그램을 닫고 다시 시도하세요.'));
+ });
+}
+async function archiveRun(mode,action){
+ const db=await openArchive();
+ try{return await new Promise((resolve,reject)=>{
+  const tx=db.transaction('trips',mode),store=tx.objectStore('trips');let result,reason;
+  tx.oncomplete=()=>resolve(result);
+  tx.onabort=()=>reject(reason||tx.error||Error('저장 작업이 중단되었습니다.'));
+  const done=value=>{result=value;};
+  const stop=message=>{reason=Error(message);tx.abort();};
+  action(store,done,stop);
+ });}finally{db.close();}
+}
+function archiveWrite(data,id){
+ return archiveRun('readwrite',(store,done,stop)=>{
+  const probe=id?store.getKey(id):store.count();
+  probe.onsuccess=()=>{
+   if(id&&probe.result===undefined){stop('덮어쓸 내역이 없습니다. 새 내역으로 저장해 주세요.');return;}
+   if(!id&&probe.result>=20){stop('최대 20건까지 저장할 수 있습니다. 기존 내역을 덮어쓰거나 하나를 삭제하세요.');return;}
+   const req=id?store.put({...data,id}):store.add(data);
+   req.onsuccess=()=>done(req.result);
+  };
+ });
+}
+function archiveRead(id){
+ return archiveRun('readonly',(store,done)=>{const q=store.get(id);q.onsuccess=()=>done(q.result);});
+}
+function archiveDelete(id){
+ return archiveRun('readwrite',(store,done)=>{const req=store.delete(id);req.onsuccess=()=>done();});
+}
+function archiveIndex(){
+ return archiveRun('readonly',(store,done)=>{
+  const rows=[],req=store.openCursor();
+  req.onsuccess=()=>{const c=req.result;if(!c){done(rows);return;}const {id,title,updated}=c.value;rows.push({id,title,updated});c.continue();};
+ });
+}
+function initArchive(){
+ let current=0;
+ const status=$('#archiveStatus'),select=$('#archiveList');
+ const buttons=['#archiveNew','#archiveOverwrite','#archiveLoad','#archiveDelete'].map(q=>$(q));
+ async function refresh(selected){
+  const data=await archiveIndex();data.sort((a,b)=>b.updated-a.updated||b.id-a.id);
+  select.replaceChildren();select.add(new Option('저장 내역 선택',''));
+  for(const r of data)select.add(new Option(r.title+' · '+new Date(r.updated).toLocaleString('ko-KR'),String(r.id)));
+  if(selected)select.value=String(selected);
+  $('#archiveCount').textContent=data.length;
+ }
+ const run=async action=>{
+  buttons.forEach(e=>e.disabled=true);select.disabled=true;
+  try{await action();}catch(e){
+   status.textContent=e.name==='QuotaExceededError'?'브라우저 저장 공간이 부족합니다. 이미지 크기를 줄이거나 기존 내역을 삭제하세요.':(['SecurityError','InvalidStateError','UnknownError','ReferenceError'].includes(e.name)?'이 환경에서는 브라우저 저장소를 사용할 수 없습니다. 일반 Chrome 또는 Edge 창에서 열어 주세요.':e.message);
+  }finally{buttons.forEach(e=>e.disabled=false);select.disabled=false;$('#archiveOverwrite').disabled=!current;}
+ };
+ const save=async overwrite=>{
+  const a=$('#start').value,b=$('#end').value;
+  const title=read(document,'#archiveTitle')||[read(document,'#place')||TYPES[active()],a+(a&&b&&a!==b?' ~ '+b:'')].filter(Boolean).join(' / ');
+  const id=await archiveWrite(snapshot(title),overwrite?current:0);
+  current=id;await refresh(id);
+  status.textContent=overwrite?'저장한 내역을 덮어썼습니다.':'새 내역으로 저장했습니다.';
+ };
+ $('#archiveNew').onclick=()=>run(()=>save(false));
+ $('#archiveOverwrite').onclick=()=>run(async()=>{if(current&&confirm('불러오거나 저장한 내역을 현재 입력으로 덮어쓸까요?'))await save(true);});
+ $('#archiveLoad').onclick=()=>run(async()=>{
+  const id=Number(select.value);if(!id)fail('불러올 내역을 선택하세요.');
+  if(!confirm('현재 화면의 미저장 입력은 바뀝니다. 선택한 내역을 불러올까요?'))return;
+  const data=await archiveRead(id);if(!data)fail('저장 내역을 찾을 수 없습니다.');
+  restore(data);current=id;status.textContent='입력값과 증빙 이미지를 불러왔습니다.';
+ });
+ $('#archiveDelete').onclick=()=>run(async()=>{
+  const id=Number(select.value);if(!id)fail('삭제할 내역을 선택하세요.');
+  if(!confirm('선택한 저장 내역과 저장된 증빙을 삭제할까요? 현재 화면의 입력은 남습니다.'))return;
+  await archiveDelete(id);if(current===id)current=0;await refresh(0);status.textContent='선택한 내역을 삭제했습니다.';
+ });
+ run(()=>refresh(0));
+}
+function init(){
+ $('#approval').innerHTML=opt(Object.entries(APPROVAL));
+ $('#kind').onchange=updateView;$('#people').addEventListener('change',e=>{if(e.target.classList.contains('mode'))updateNearWarning();});$('#approval').onchange=()=>{$('#approved').checked=false;updateView();};
+ $('#start').onchange=()=>{if(!$('#end').value||$('#end').value<$('#start').value)$('#end').value=$('#start').value;updateDates();};$('#end').onchange=()=>updateDates();
+ $('#add').onclick=()=>{if(all('.person').length<20)newPerson();else $('#status').textContent='출장자는 최대 20명입니다.';};
+ $('#app').addEventListener('input',e=>{if(e.target.id!=='status')$('#preview').replaceChildren();if(e.target.id==='distance'||e.target.classList.contains('km'))updateNearWarning();});
+ async function execute(download){
+  const status=$('#status'),buttons=[$('#save'),$('#check')];buttons.forEach(x=>x.disabled=true);status.className='';
+  status.textContent=download?'증빙을 넣어 엑셀을 만드는 중입니다.':'입력을 확인하는 중입니다.';
+  $('#preview').replaceChildren();
+  try{
+   const d=await gather(download);const summary=$('#preview');
+   for(const p of d.people){
+    const line=document.createElement('li');
+    line.textContent=d.kind==='foreign'?`${p.name}: 임직원 ${won(p.employee)}, 여행사 ${won(p.vendor)}`:d.kind==='near'?`${p.name}: 교통비 ${won(p.cost.tf)}, 일비 ${won(p.cost.per)}, 식비 ${won(p.cost.meal)}, 숙박비 ${won(p.cost.hotel)} — 합계 ${won(p.cost.total)}`:`${p.name}: ${GRADES[p.own]} 일비 ${won(p.cost.per)}, ${GRADES[p.shared]} 기준 식비 ${won(p.cost.meal)}, 교통비 ${won(p.cost.tf)}, 숙박비 ${won(p.cost.hotel)} — 합계 ${won(p.cost.total)}`;
+    summary.append(line);
+   }
+   const msg=(d.groupMismatch?'동행 공통 등급 미적용: 일자별 교통수단 또는 이동 순서가 일치하지 않거나 비어 있습니다. ':'')+`총 ${won(d.total)}.`;
+   if(download){
+    const url=URL.createObjectURL(workbook(d));const link=document.createElement('a');link.href=url;
+    link.download=`${TYPES[d.kind]}_세부내역서_${d.start}${d.end===d.start?'':'~'+d.end}.xlsx`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+   }
+   status.textContent=(download?'엑셀 다운로드를 요청했습니다. 출장 내역은 자동 저장되지 않습니다. ':'검산 결과: ')+msg;
+  }catch(e){status.className='err';status.textContent=e.message;}
+  finally{buttons.forEach(x=>x.disabled=false);}
+ }
+ $('#check').onclick=()=>execute(false);$('#save').onclick=()=>execute(true);
+ $('#archiveJump').onclick=()=>{ $('#archive').scrollIntoView({block:'start'});$('#archiveTitle').focus({preventScroll:true}); };
+ newPerson();
+ wireFile($('#tripProof'));
+ $('#clearTransport').onclick=()=>{
+  if(!confirm('교통비·거리 증빙 이미지만 비울까요? 금액, 숙박, 해외 기안·정산 증빙과 저장 원본은 유지됩니다.'))return;
+  setFiles($('#tripProof'));
+  for(const e of all('.mapImg'))setFiles(e);
+  for(const r of all('.receipt'))if(isTransportType(read(r,'.type')))setFiles($('.proof',r));
+  $('#preview').replaceChildren();$('#proofStatus').textContent='교통 증빙을 비웠습니다. 새 증빙을 첨부하세요.';
+ };
+ $('#shiftApply').onclick=()=>{
+  const n=range(),next=$('#shiftDate').value,status=$('#status');
+  const revised=next&&n?dateAt(next,n-1):null;
+  if(!revised||!Number.isFinite(revised.getTime())||revised.getUTCFullYear()>9999){status.className='err';status.textContent='기존 출장 기간과 새 출발일을 확인하세요.';return;}
+  $('#start').value=next;$('#end').value=revised.toISOString().slice(0,10);updateDates(true);
+  $('#preview').replaceChildren();status.className='';status.textContent='출장 기간을 이동했습니다. 공휴일, 날짜별 예외, 증빙 날짜를 확인하세요.';
+ };
+ initArchive();
+}
+if(typeof document!=='undefined')init();
+</script></body></html>
